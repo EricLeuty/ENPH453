@@ -12,14 +12,14 @@ m_e_err = 0.00000000015 * 10**(6) #eV/c2
 detector_width = 6.35 * 10**(-4) #m
 detector_length = 1.5 #m
 fermi_E = 7.05 #eV
-fermi_p = np.sqrt(2 * m_e * fermi_E) #eV/c
-core_E_mean = 4 #eV
-core_p_mean = np.sqrt(core_E_mean**2 + m_e**2 - m_e**2) #eV/c
+fermi_p = np.sqrt(2 * fermi_E * m_e) #eV/c
+core_E_std = 4 + m_e #eV
+core_p_std = np.sqrt(core_E_std**2 - m_e**2) #eV/c
 c = 1 #c
 
 # %%
 class CoreElectron():
-    def __init__(self, loc=0.0, scale=1.0):
+    def __init__(self, loc=0.0, scale=core_p_std):
         self.loc = loc
         self.scale = scale
 
@@ -89,10 +89,10 @@ class Interaction():
 
 
 # %%
-core = CoreElectron(scale=core_p_mean)
+core = CoreElectron(scale=core_p_std)
 val = ValenceElectron(fermi_p)
 i = Interaction(m_e, detector_length)
-num = 10000
+num = 10**6
 pz_val = val.get_pz(num)
 pz_core = core.get_pz(num)
 d_val = i.get_z(pz_val)
@@ -104,7 +104,7 @@ num_bins = 51
 bins = (np.arange(num_bins) - num_bins // 2) * detector_width
 
 fig1, ax1 = plt.subplots()
-ax1.hist(d_core, bins=num_bins, orientation='horizontal')
+ax1.hist(d_core, bins=bins, orientation='horizontal')
 ax1.set_ylabel("z [m]")
 ax1.set_xlabel("Population Density")
 ax1.set_title("Core Electron Photon Deflection")
@@ -112,7 +112,7 @@ fig1.tight_layout()
 fig1.show()
 
 fig2, ax2 = plt.subplots()
-ax2.hist(d_val, bins=num_bins, orientation='horizontal')
+ax2.hist(d_val, bins=bins, orientation='horizontal')
 ax2.set_ylabel("z [m]")
 ax2.set_xlabel("Population Density")
 ax2.set_title("Valence Electron Photon Deflection")
@@ -133,13 +133,13 @@ fig3.show()
 
 # %%
 """Predicted distribution based on ratio of core electrons to valence electrons in copper"""
-core = CoreElectron(scale=core_p_mean)
+core = CoreElectron(scale=core_p_std)
 val = ValenceElectron(fermi_p)
 i = Interaction(core, val)
 num_detected = 10**6
 d_c, d_v = i.predict_deflection(num_detected)
 d = np.concatenate((d_c, d_v))
-print(np.max(d_c))
+
 num_bins = 51
 bins = (np.arange(num_bins) - num_bins // 2) * detector_width
 
@@ -151,6 +151,7 @@ ax4.set_title("Deflection of photon with respect to z for Cu")
 fig4.tight_layout()
 fig4.show()
 
+"""
 fig5, ax5 = plt.subplots()
 ax5.hist(d_c, bins=bins, orientation='horizontal')
 ax5.set_ylabel("z [m]")
@@ -160,10 +161,11 @@ fig5.tight_layout()
 fig5.show()
 
 fig6, ax6 = plt.subplots()
-ax6.hist(d_v, bins=num_bins, orientation='horizontal')
+ax6.hist(d_v, bins=bins, orientation='horizontal')
 ax6.set_ylabel("z [m]")
 ax6.set_xlabel("Population Density")
 ax6.set_title("Valence Electron Photon Deflection")
 fig6.tight_layout()
 fig6.show()
+"""
 
