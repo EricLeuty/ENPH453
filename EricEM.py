@@ -4,7 +4,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
-from scipy import fft
+import scipy.fft as fft
+import scipy.stats as stats
+import scipy as sp
 
 
 # %%
@@ -13,6 +15,7 @@ m_e = 0.51099895000 * 10**(6) #eV/c2
 m_e_err = 0.00000000015 * 10**(6) #eV/c2
 detector_width = 6.35 * 10**(-4) #m
 detector_length = 1.5 #m
+detector_err = 1.1167 * 10**(-4)
 fermi_E = 7.0 #eV
 fermi_p = np.sqrt(2 * fermi_E * m_e) #eV/c
 core_E_std = 4 + m_e #eV
@@ -33,26 +36,29 @@ class CoreElectron():
 class ValenceElectron():
     def __init__(self, fermi_p):
         self.fermi_p = fermi_p
-        self.num_states = (4/3) * np.pi * self.fermi_p**3
+        self.num_states = fermi_p**2
 
     def get_p(self, num):
-        r, theta, azi = self.gen_pos(num)
+        r, azi, theta = self.gen_pos(num)
         px = r * np.cos(azi) * np.sin(theta)
         py = r * np.sin(azi) * np.sin(theta)
         pz = r * np.cos(theta)
-        return(np.asarray[px, py, pz])
+
+        return np.asarray([px, py, pz])
 
     def get_pz(self, num):
-        r, theta, azi = self.gen_pos(num)
-        pz = r*np.cos(theta)
+        r, azi, theta = self.gen_pos(num)
+        pz = r * np.cos(theta)
         return pz
+
 
     def gen_pos(self, num):
         state = np.random.rand(num)*self.num_states
-        r = np.cbrt(3 * state / (4 * np.pi))
+        r = np.sqrt(state)
         theta = np.random.rand(num) * np.pi
         azi = 2 * np.random.rand(num) * np.pi
         return r, azi, theta
+
 
 # %%
 class Interaction():
@@ -78,25 +84,23 @@ class Interaction():
         d = self.l * np.tan(defl)
         return d
 
-    def predict_deflection(self, num):
+    def predict_deflection(self, num, a):
         num_rand = np.random.rand(num) * 29
-        num_v = (num_rand < 2.0).sum()
+        num_v = (num_rand < a).sum()
         num_c = num_detected - num_v
         pz_c = self.core.get_pz(num_c)
+        d_c = self.get_z(pz_c)
         pz_v = self.val.get_pz(num_v)
-        d_v = self.get_z(pz_val)
-        d_c = self.get_z(pz_core)
-        return d_c, d_v
-
-
-
+        d_v = self.get_z(pz_v)
+        d = np.concatenate((d_c, d_v))
+        return d
 
 
 # %%
 core = CoreElectron(scale=core_p_std)
 val = ValenceElectron(fermi_p)
 i = Interaction(m_e, detector_length)
-num = 10**8
+num = 10**6
 pz_val = val.get_pz(num)
 pz_core = core.get_pz(num)
 d_val = i.get_z(pz_val)
@@ -153,8 +157,7 @@ core = CoreElectron(scale=core_p_std)
 val = ValenceElectron(fermi_p)
 i = Interaction(core, val)
 num_detected = 10**6
-d_c, d_v = i.predict_deflection(num_detected)
-d = np.concatenate((d_c, d_v))
+d = i.predict_deflection(num_detected, 1.5)
 
 num_bins = 52
 bins = (np.arange(num_bins) - num_bins // 2) * detector_width
@@ -180,10 +183,27 @@ time = data[:, 1]
 pos_int = data[:, 2]
 counts = data[:, 3]
 coincident_counts = data[:, 4]
+total_co_counts = coincident_counts.sum()
+total_counts = counts.sum()
+mean_counts = np.mean(counts)
 
-norm_counts = coincident_counts / counts
+adj = (counts - counts[len(counts)//2])/counts[len(counts)//2] + 1
+norm_counts = coincident_counts / adj
 norm_counts = norm_counts / np.sum(norm_counts)
-pos = pos_int * detector_width
+
+
+
+# %%
+num_bins = 51
+pos = (np.arange(num_bins) - num_bins // 2) * detector_width
+
+fig, ax = plt.subplots()
+ax.bar(pos, counts, width=detector_width, fill=False)
+ax.set_xlabel("z [m]")
+ax.set_ylabel("Population Density")
+ax.set_title("Single Counts w.r.t. deflection")
+fig.tight_layout()
+fig.show()
 
 fig5, ax5 = plt.subplots()
 ax5.bar(pos, coincident_counts, width=detector_width)
@@ -201,9 +221,42 @@ ax6.set_title("Observed deflection of photon with respect to z for Cu")
 fig6.tight_layout()
 fig6.show()
 
-# %%
-fft_real = fft.fft(norm_counts)
 
+# %%
+
+def line(x, a3, a2, a1, a0):
+    return a3*x**3 + a2*x**2 + a1*x + a0
+
+a = sp.optimize.curve_fit(line, pos, counts)[0]
+a3 = a[0]/a[3]
+a2 = a[1]/a[3]
+a1 = a[2]/a[3]
+a0 = a[3]/a[3]
+
+line_fix = line(pos, a3, a2, a1, a0)
+
+counts_2 = counts / line_fix
+co_counts_2 = coincident_counts / line_fix
+norm_counts_2 = co_counts_2 / co_counts_2.sum()
+
+
+fig, ax = plt.subplots()
+ax.bar(pos, norm_counts_2, width=detector_width)
+ax.set_xlabel("z [m]")
+ax.set_ylabel("Population Density")
+ax.set_title("Coincident Counts w.r.t. Deflection")
+fig.tight_layout()
+fig.show()
+# %%
+
+
+
+
+
+
+
+# %%
+fft_real = fft.fft(norm_counts_2)
 fig7, ax7 = plt.subplots()
 ax7.plot(fft_real, label='Real')
 ax7.plot(fft_core, label='Core')
@@ -217,12 +270,96 @@ fig7.show()
 
 
 # %%
-z = 28.0/29 * hist_core + 1.0/29 * hist_val
-fig8, ax8 = plt.subplots()
-ax8.plot(z, ':')
-fig8.show()
 
-print(a * 29)
+b = np.mean(fft_real - fft_core) / np.mean(fft_val - fft_core)
+a = 1-b
+
+z = a.real * hist_core + b.real * hist_val
+num_bins = 51
+pos = (np.arange(num_bins) - num_bins // 2) * detector_width
+fig, ax = plt.subplots()
+ax.bar(pos, norm_counts_2, width=detector_width, label='Real Data')
+ax.bar(pos, z, width=detector_width, label='FFT Prediction', fill=False)
+ax.legend()
+fig.show()
+
+# %%
+a = np.linspace(1.2, 1.6, num=100)
+num_detected = int(total_counts)
+
+core = CoreElectron(scale=core_p_std)
+val = ValenceElectron(fermi_p)
+i = Interaction(core, val)
+pred = np.zeros((a.shape[0], norm_counts.shape[0]))
+diff = np.zeros(a.shape)
+
+num_bins = 52
+bins = (np.arange(num_bins) - num_bins // 2) * detector_width
+for idx in range(len(a)):
+    d = i.predict_deflection(num_detected, a[idx])
+    hist_d = np.histogram(d, bins=bins)[0]
+    pred[idx] = hist_d / np.sum(hist_d)
+    temp_diff = pred[idx] - norm_counts
+    diff[idx] = np.sqrt(temp_diff.dot(temp_diff))
+
+
+
+min = np.argsort(diff, axis=0)
+
+
+# %%
+print(a[min[:5]])
+print(diff[min[:5]])
+
+
+# %%
+
+fig9, ax9 = plt.subplots()
+ax9.bar(pos, norm_counts_2, width=detector_width, label="Real Data")
+ax9.bar(pos, pred[0], width=detector_width, label="Best Prediction", fill=False)
+ax9.bar(pos, z, width=detector_width, label="Best FFT Prediction", fill=False)
+ax9.legend()
+ax9.set_xlabel("z [m]")
+ax9.set_ylabel("Population Density")
+ax9.set_title("Observed deflection of photon with respect to z for Cu")
+fig9.tight_layout()
+fig9.show()
+
+# %%
+num_bins = 52
+bins = (np.arange(num_bins) - num_bins // 2) * detector_width
+print(a[min[0]])
+num_bins = 51
+pos = (np.arange(num_bins) - num_bins // 2) * detector_width
+core = CoreElectron(scale=core_p_std)
+val = ValenceElectron(fermi_p)
+i = Interaction(core, val)
+pred = i.predict_deflection(num_detected, a=a[min[0]])
+hist_pred = np.histogram(pred, bins=bins)[0]
+hist_pred = hist_pred / np.sum(hist_pred)
+
+
+fig, ax = plt.subplots()
+ax.bar(pos, norm_counts, width=detector_width, label="Real Data")
+ax.bar(pos, hist_pred, width=detector_width, label="Best Prediction", fill=False)
+ax.legend()
+
+
+ax.set_xlabel("z [m]")
+ax.set_ylabel("Population Density")
+ax.set_title("Observed deflection of photon with respect to z for Cu")
+fig.tight_layout()
+fig.show()
+
+
+
+
+
+
+
+
+
+
 
 
 
