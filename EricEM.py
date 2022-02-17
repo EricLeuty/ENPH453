@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#Eric Leuty
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
@@ -197,14 +198,6 @@ norm_counts = norm_counts / np.sum(norm_counts)
 num_bins = 51
 pos = (np.arange(num_bins) - num_bins // 2) * detector_width
 
-fig, ax = plt.subplots()
-ax.bar(pos, counts, width=detector_width, fill=False)
-ax.set_xlabel("z [m]")
-ax.set_ylabel("Population Density")
-ax.set_title("Single Counts w.r.t. deflection")
-fig.tight_layout()
-fig.show()
-
 fig5, ax5 = plt.subplots()
 ax5.bar(pos, coincident_counts, width=detector_width)
 ax5.set_xlabel("z [m]")
@@ -217,7 +210,7 @@ fig6, ax6 = plt.subplots()
 ax6.bar(pos, norm_counts, width=detector_width)
 ax6.set_xlabel("z [m]")
 ax6.set_ylabel("Population Density")
-ax6.set_title("Observed deflection of photon with respect to z for Cu")
+ax6.set_title("Norm 1: {:.4f}".format(sp.stats.skew(norm_counts)))
 fig6.tight_layout()
 fig6.show()
 
@@ -244,19 +237,12 @@ fig, ax = plt.subplots()
 ax.bar(pos, norm_counts_2, width=detector_width)
 ax.set_xlabel("z [m]")
 ax.set_ylabel("Population Density")
-ax.set_title("Coincident Counts w.r.t. Deflection")
+ax.set_title("Norm 2: {:.4f}".format(sp.stats.skew(norm_counts_2)))
 fig.tight_layout()
 fig.show()
-# %%
-
-
-
-
-
-
 
 # %%
-fft_real = fft.fft(norm_counts_2)
+fft_real = fft.fft(norm_counts)
 fig7, ax7 = plt.subplots()
 ax7.plot(fft_real, label='Real')
 ax7.plot(fft_core, label='Core')
@@ -278,10 +264,10 @@ z = a.real * hist_core + b.real * hist_val
 num_bins = 51
 pos = (np.arange(num_bins) - num_bins // 2) * detector_width
 fig, ax = plt.subplots()
-ax.bar(pos, norm_counts_2, width=detector_width, label='Real Data')
+ax.bar(pos, norm_counts, width=detector_width, label='Real Data')
 ax.bar(pos, z, width=detector_width, label='FFT Prediction', fill=False)
 ax.legend()
-fig.show()
+#fig.show()
 
 # %%
 a = np.linspace(1.2, 1.6, num=100)
@@ -315,7 +301,7 @@ print(diff[min[:5]])
 # %%
 
 fig9, ax9 = plt.subplots()
-ax9.bar(pos, norm_counts_2, width=detector_width, label="Real Data")
+ax9.bar(pos, norm_counts, width=detector_width, label="Real Data")
 ax9.bar(pos, pred[0], width=detector_width, label="Best Prediction", fill=False)
 ax9.bar(pos, z, width=detector_width, label="Best FFT Prediction", fill=False)
 ax9.legend()
@@ -350,6 +336,9 @@ ax.set_ylabel("Population Density")
 ax.set_title("Observed deflection of photon with respect to z for Cu")
 fig.tight_layout()
 fig.show()
+
+
+# %%
 
 
 
